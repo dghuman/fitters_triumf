@@ -14,17 +14,29 @@ Requires that we know the precision for the spatial variables and the time varia
   TObjArray ttemphists;
   
   Int_t check,count,mincount;
+  Float_t xpos,ypos,zpos,time,loglikelihood;
+
+  // Read in the ntuple
+  TNtuple Ntuple;
 
   // Values set apriori according to the fiTQun fitting parameters.
   const Int_t time_precision = 1;
   const Int_t time_min = 950;
   const Int_t time_max = 1000;
-  const Int_t    
+  const Int_t spatial_min = -400;
+  const Int_t spatial_max = 400;
   const Float_t spatial_precision = 25.;
 
-  // Make the histograms and fill the hist array
+  // Figure out which index has the most indices to run through.
+  check = ((float) time_max - time_min)/((float) time_precision);
+  count = ((float) spatial_max - spatial_min)/((float) spatial_precision);
 
-  if (
+  if (check > count) {
+    mincount = check;
+  } else { mincount = count;}
+
+  // Make the histograms and fill the hist array
   check = 0;
   count = 0;
-  while (count < 
+  while (count < mincount) {
+    
