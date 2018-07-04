@@ -25,7 +25,7 @@ Requires that we know the precision for the spatial variables and the time varia
 
   // Read in the file and make an output file
   TFile TheFile("./fiTQun_single_events.root");
-  TFile NewFile("./TESTING.root","RECREATE");
+  TFile NewFile("./testing.root","RECREATE");
 
   // The Ntuples to be read from and written to
   TNtuple* Ntuple; 
@@ -64,26 +64,22 @@ Requires that we know the precision for the spatial variables and the time varia
   vector<Float_t> zpos_mat;
 
   // Loop through the ntuples
-  for (int i = 1; i < ntuplecount; i++) {
+  for (int i = 0; i < ntuplecount; i++) { 
     // Clear the vectors of the previous ntuple values
     time_mat.clear();
     xpos_mat.clear();
     ypos_mat.clear();
     zpos_mat.clear();
     // refill the vectors with infs so that we can compare values
-    for (int m = 0; m < time_steps; m++) {
-      switch(check) {
-      case 0: 
+    for (int m = 0; m < time_steps + 1; m++) {
+      if (m < spatial_steps + 1) {
 	xpos_mat.push_back(inf);
 	ypos_mat.push_back(inf);
 	zpos_mat.push_back(inf);
-      case 1:
-	time_mat.push_back(inf);
-	break;
       }
-      if (m == spatial_steps - 1) { check = 1; }
+      time_mat.push_back(inf);
     }
-    TheFile->cd();
+    TheFile.cd();
     cout << "Working on Ntuple number " << i << endl;
     Ntuple = (TNtuple*)TheFile.Get(Form("likelihoodprefit_Event%03d",i));    // Read from the next ntuple
     Ntuple->SetBranchAddress("xpos",&xpos);
@@ -132,28 +128,24 @@ Requires that we know the precision for the spatial variables and the time varia
     // Write the minimum of each column vector to the appropriate histogram bin
     check = 0;
     for (int j = 0; j < time_steps; j++) {
-      switch(check) {
-      case 0:
-	xhist_final->SetBinContent(j,xpos_mat[j]);
-	yhist_final->SetBinContent(j,ypos_mat[j]);
-	zhist_final->SetBinContent(j,zpos_mat[j]);
-      case 1:
-	thist_final->SetBinContent(j,time_mat[j]);
-	break;
+      if (j < spatial_steps) {
+	xhist_final->SetBinContent(j,xpos_mat[j] - gmin_loglikelihood);
+	yhist_final->SetBinContent(j,ypos_mat[j] - gmin_loglikelihood);
+	zhist_final->SetBinContent(j,zpos_mat[j] - gmin_loglikelihood);
       }
-      if (j == spatial_steps - 1) { check = 1; }
+      thist_final->SetBinContent(j,time_mat[j] - gmin_loglikelihood);
     }
     NewFile.cd();
     cout << "Filling ntuple with global minimum position ..." << endl;
     // Save to the ntuple
-    EventGlobalMin->Fill((float)i,(float)gmin_xpos,(float)gmin_ypos,(float)gmin_zpos,(float)gmin_time,(float)gmin_loglikelihood);
-    // Normalize the plots that were made to the global minimum experienced during the process
+    EventGlobalMin->Fill((float)i,(float)gmin_xpos,(float)gmin_ypos,(float)gmin_zpos,(float)gmin_time,gmin_loglikelihood);
+    /*// Normalize the plots that were made to the global minimum experienced during the process
     time_norm = new TF1(Form("time_norm%03d",i),"-1",time_min,time_max);
     spatial_norm = new TF1(Form("spatial_norm%03d",i),"-1",spatial_min,spatial_max);
     xhist_final->Add(spatial_norm,gmin_loglikelihood);
     yhist_final->Add(spatial_norm,gmin_loglikelihood);
     zhist_final->Add(spatial_norm,gmin_loglikelihood);
-    thist_final->Add(time_norm,gmin_loglikelihood);    
+    thist_final->Add(time_norm,gmin_loglikelihood);    */
     // Save the plots that we have made
     cout << "Saving plots ... " << endl;
     NewFile.cd();
