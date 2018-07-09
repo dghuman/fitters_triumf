@@ -8,7 +8,7 @@ Requires that we know the precision for the spatial variables and the time varia
 {
 #include <vector>     
 
-  const int ntuplecount = 2;
+  const int ntuplecount = 1;
 
   TObjArray xtemphists,ytemphists,ztemphists,ttemphists;    // Histogram array that will hold the hists that will be filled when each loglikelihood is distributed.
   
@@ -17,6 +17,14 @@ Requires that we know the precision for the spatial variables and the time varia
   TH1F* zhist_final;
   TH1F* thist_final;
 
+  // 2Dim plots of the same form as the 1D ones, except that the final plot will hold 2 parameters constant and will then spit out the projection among the other 2
+  TH2F* XYhist;
+  TH2F* XZhist;
+  TH2F* YZhist;
+  TH2F* TXhist;
+  TH2F* TYhist;
+  TH2F* TZhist;
+
   TF1* time_norm;
   TF1* spatial_norm;
 
@@ -24,7 +32,7 @@ Requires that we know the precision for the spatial variables and the time varia
   Float_t xpos,ypos,zpos,time,loglikelihood,gmin_loglikelihood;
 
   // Read in the file and make an output file
-  TFile TheFile("./fiTQun_single_events.root");
+  TFile TheFile("./fiTQun_3events_15ns.root");
   TFile NewFile("./testing.root","RECREATE");
 
   // The Ntuples to be read from and written to
@@ -57,11 +65,37 @@ Requires that we know the precision for the spatial variables and the time varia
 
   check = 0;
   count = 0;
-  // Allocate the matrices to store the data
+  // Allocate the vectors to store the data
   vector<Float_t> time_mat;
   vector<Float_t> xpos_mat;
   vector<Float_t> ypos_mat;
   vector<Float_t> zpos_mat;
+
+  // Initialize the matrices that store the 2 dim data
+  Float_t** xy_mat = new Float_t*[spatial_steps];
+  Float_t** xz_mat = new Float_t*[spatial_steps];
+  Float_t** yz_mat = new Float_t*[spatial_steps];
+  Float_t** tx_mat = new Float_t*[time_steps];
+  Float_t** ty_mat = new Float_t*[time_steps];
+  Float_t** tz_mat = new Float_t*[time_steps];
+
+  xy_mat[0] = new Float_t[spatial_steps*spatial_steps];
+  xz_mat[0] = new Float_t[spatial_steps*spatial_steps];
+  yz_mat[0] = new Float_t[spatial_steps*spatial_steps];
+  tx_mat[0] = new Float_t[spatial_steps*time_steps];
+  ty_mat[0] = new Float_t[spatial_steps*time_steps];
+  tz_mat[0] = new Float_t[spatial_steps*time_steps];
+
+  for (int i = 1; i < time_steps; i++) {
+    if (i < spatial_steps) {
+      xy_mat[i] = xy_mat[0] + i*spatial_steps;
+      xz_mat[i] = xz_mat[0] + i*spatial_steps;
+      yz_mat[i] = yz_mat[0] + i*spatial_steps;
+    }
+    tx_mat[i] = tx_mat[0] + i*spatial_steps;
+    ty_mat[i] = ty_mat[0] + i*spatial_steps;
+    tz_mat[i] = tz_mat[0] + i*spatial_steps;
+  }
 
   // Loop through the ntuples
   for (int i = 0; i < ntuplecount; i++) { 
@@ -71,26 +105,50 @@ Requires that we know the precision for the spatial variables and the time varia
     ypos_mat.clear();
     zpos_mat.clear();
     // refill the vectors with infs so that we can compare values
-    for (int m = 0; m < time_steps + 1; m++) {
-      if (m < spatial_steps + 1) {
+    
+    for (int m = 0; m < time_steps; m++) {
+      if (m < spatial_steps) {
 	xpos_mat.push_back(inf);
 	ypos_mat.push_back(inf);
 	zpos_mat.push_back(inf);
       }
       time_mat.push_back(inf);
     }
+
+    // fill with infs
+    for (int k = 0; k < time_steps; k++) {
+      for (int l = 0; l < spatial_steps; l++) {
+	if (k < spatial_steps) {
+	  xy_mat[k][l] = inf;
+	  xz_mat[k][l] = inf;
+	  yz_mat[k][l] = inf;
+	}
+	tx_mat[k][l] = inf;
+	ty_mat[k][l] = inf;
+	tz_mat[k][l] = inf;
+      }
+    }
     TheFile.cd();
     cout << "Working on Ntuple number " << i << endl;
-    Ntuple = (TNtuple*)TheFile.Get(Form("likelihoodprefit_Event%03d",i));    // Read from the next ntuple
+    // Make the 1D plots for the new ntuple
+    xhist_final = new TH1F(Form("loglikelihood_vs_xpos_Event%03d",i), "Loglikelihood vs xpos", spatial_steps, (float)spatial_min - ((float)spatial_precision)/2.0, (float)spatial_max + ((float)spatial_precision)/2.0);
+    yhist_final = new TH1F(Form("loglikelihood_vs_ypos_Event%03d",i), "Loglikelihood vs ypos", spatial_steps, (float)spatial_min - ((float)spatial_precision)/2.0, (float)spatial_max + ((float)spatial_precision)/2.0);
+    zhist_final = new TH1F(Form("loglikelihood_vs_zpos_Event%03d",i), "Loglikelihood vs zpos", spatial_steps, (float)spatial_min - ((float)spatial_precision)/2.0, (float)spatial_max + ((float)spatial_precision)/2.0);
+    thist_final = new TH1F(Form("loglikelihood_vs_time_Event%03d",i), "Loglikelihood vs time", time_steps, (float)time_min - ((float)time_precision)/2.0, (float)time_max + ((float)spatial_precision)/2.0);
+    // Make the 2D plots for the new ntuple
+    XYhist = new TH2F(Form("loglikelihood_XY_Event%03d",i), "XY Plot",spatial_steps,(float)spatial_min - ((float)spatial_precision)/2.0, (float)spatial_max + ((float)spatial_precision)/2.0,spatial_steps,(float)spatial_min - ((float)spatial_precision)/2.0, (float)spatial_max + ((float)spatial_precision)/2.0);
+    XZhist = new TH2F(Form("loglikelihood_XZ_Event%03d",i), "XZ Plot",spatial_steps,(float)spatial_min - ((float)spatial_precision)/2.0, (float)spatial_max + ((float)spatial_precision)/2.0,spatial_steps,(float)spatial_min - ((float)spatial_precision)/2.0, (float)spatial_max + ((float)spatial_precision)/2.0);
+    YZhist = new TH2F(Form("loglikelihood_YZ_Event%03d",i), "YZ Plot",spatial_steps,(float)spatial_min - ((float)spatial_precision)/2.0, (float)spatial_max + ((float)spatial_precision)/2.0,spatial_steps,(float)spatial_min - ((float)spatial_precision)/2.0, (float)spatial_max + ((float)spatial_precision)/2.0);
+    TXhist = new TH2F(Form("loglikelihood_TX_Event%03d",i), "TX Plot",time_steps,(float)time_min - ((float)time_precision)/2.0, (float)time_max + ((float)time_precision)/2.0,spatial_steps,(float)spatial_min - ((float)spatial_precision)/2.0, (float)spatial_max + ((float)spatial_precision)/2.0);
+    TYhist = new TH2F(Form("loglikelihood_TY_Event%03d",i), "TY Plot",time_steps,(float)time_min - ((float)time_precision)/2.0, (float)time_max + ((float)time_precision)/2.0,spatial_steps,(float)spatial_min - ((float)spatial_precision)/2.0, (float)spatial_max + ((float)spatial_precision)/2.0);
+    TZhist = new TH2F(Form("loglikelihood_TZ_Event%03d",i), "TZ Plot",time_steps,(float)time_min - ((float)time_precision)/2.0, (float)time_max + ((float)time_precision)/2.0,spatial_steps,(float)spatial_min - ((float)spatial_precision)/2.0, (float)spatial_max + ((float)spatial_precision)/2.0);
+    // Set-up to read from the ntuple
+    Ntuple = (TNtuple*)TheFile.Get(Form("likelihoodprefit_Event%03d",i));
     Ntuple->SetBranchAddress("xpos",&xpos);
     Ntuple->SetBranchAddress("ypos",&ypos);
     Ntuple->SetBranchAddress("zpos",&zpos);
     Ntuple->SetBranchAddress("time",&time);
     Ntuple->SetBranchAddress("loglikelihood",&loglikelihood);
-    xhist_final = new TH1F(Form("loglikelihood_vs_xpos_Event%03d",i), "Loglikelihood vs xpos", spatial_steps+1, (float)spatial_min - ((float)spatial_precision)/2.0, (float)spatial_max + ((float)spatial_precision)/2.0);
-    yhist_final = new TH1F(Form("loglikelihood_vs_ypos_Event%03d",i), "Loglikelihood vs ypos", spatial_steps+1, (float)spatial_min - ((float)spatial_precision)/2.0, (float)spatial_max + ((float)spatial_precision)/2.0);
-    zhist_final = new TH1F(Form("loglikelihood_vs_zpos_Event%03d",i), "Loglikelihood vs zpos", spatial_steps+1, (float)spatial_min - ((float)spatial_precision)/2.0, (float)spatial_max + ((float)spatial_precision)/2.0);
-    thist_final = new TH1F(Form("loglikelihood_vs_time_Event%03d",i), "Loglikelihood vs time", time_steps+1, (float)time_min - ((float)time_precision)/2.0, (float)time_max + ((float)spatial_precision)/2.0);
     ntuple_entries = Ntuple->GetEntries();
     check = 0;
     gmin_loglikelihood = inf;
@@ -100,7 +158,6 @@ Requires that we know the precision for the spatial variables and the time varia
       //cout << "Loglikelihood at " << k << " is " << loglikelihood << endl; // Debugging
       // Keep track of the minimum loglikelihood observed
       if (loglikelihood < gmin_loglikelihood) {
-	cout << "New minimum Loglikelihood is " << loglikelihood << endl;
 	gmin_loglikelihood = loglikelihood;
 	gmin_xpos = xpos;
 	gmin_ypos = ypos;
@@ -124,28 +181,94 @@ Requires that we know the precision for the spatial variables and the time varia
       if (time_mat[t_index] > loglikelihood) {
 	time_mat[t_index] = loglikelihood;
       }
+      // Now to fill the matrices with the minimum loglikelihood
+      if (xy_mat[x_index][y_index] > loglikelihood) {
+	xy_mat[x_index][y_index] = loglikelihood;
+      }
+      if (xz_mat[x_index][z_index] > loglikelihood) {
+	xz_mat[x_index][z_index] = loglikelihood;
+      }
+      if (yz_mat[y_index][z_index] > loglikelihood) {
+	yz_mat[y_index][z_index] = loglikelihood;
+      }
+      if (tx_mat[t_index][x_index] > loglikelihood) {
+	tx_mat[t_index][x_index] = loglikelihood;
+      }
+      if (ty_mat[t_index][y_index] > loglikelihood) {
+	ty_mat[t_index][y_index] = loglikelihood;
+      }
+      if (tz_mat[t_index][z_index] > loglikelihood) {
+	tz_mat[t_index][z_index] = loglikelihood;
+      }
     }
     // Write the minimum of each column vector to the appropriate histogram bin
     check = 0;
+    // First the 1D hists
     for (int j = 0; j < time_steps; j++) {
       if (j < spatial_steps) {
-	xhist_final->SetBinContent(j,xpos_mat[j] - gmin_loglikelihood);
-	yhist_final->SetBinContent(j,ypos_mat[j] - gmin_loglikelihood);
+	if (xpos_mat[j] == inf) { 
+	  xhist_final->SetBinContent(j,0.0);
+	} else {
+	  xhist_final->SetBinContent(j,xpos_mat[j] - gmin_loglikelihood);
+	}
+	if (ypos_mat[j] == inf) {
+	  yhist_final->SetBinContent(j,0.0);
+	} else {
+	  yhist_final->SetBinContent(j,ypos_mat[j] - gmin_loglikelihood);
+	}
+	if (zpos_mat[j] == inf) {	
+	  zhist_final->SetBinContent(j,0.0);
+	} else {
 	zhist_final->SetBinContent(j,zpos_mat[j] - gmin_loglikelihood);
+	}
       }
-      thist_final->SetBinContent(j,time_mat[j] - gmin_loglikelihood);
+      if (time_mat[j] == inf) {
+	      thist_final->SetBinContent(j,0.0);
+      } else {
+	thist_final->SetBinContent(j,time_mat[j] - gmin_loglikelihood);
+      }
+    }
+    // Now to draw into the 2D hists
+    for (int row = 0; row < time_steps; row++) {
+      for (int col = 0; col < spatial_steps; col++) {
+	if (row < spatial_steps) {
+	  if (xy_mat[row][col] == inf) {
+	    XYhist->Fill(spatial_min + row*spatial_precision,spatial_min + col*spatial_precision,0.0);
+	  } else {
+	    XYhist->Fill(spatial_min + row*spatial_precision,spatial_min + col*spatial_precision,xy_mat[row][col] - gmin_loglikelihood);
+	  }
+	  if (xz_mat[row][col] == inf) {	  
+	    XZhist->Fill(spatial_min + row*spatial_precision,spatial_min + col*spatial_precision,0.0);
+	  } else {
+	    XZhist->Fill(spatial_min + row*spatial_precision,spatial_min + col*spatial_precision,xz_mat[row][col] - gmin_loglikelihood);
+	  }
+	  if (yz_mat[row][col] == inf) {	  	  
+	    YZhist->Fill(spatial_min + row*spatial_precision,spatial_min + col*spatial_precision,0.0);
+	  } else {
+	    YZhist->Fill(spatial_min + row*spatial_precision,spatial_min + col*spatial_precision,yz_mat[row][col] - gmin_loglikelihood);
+	  }
+	}
+	if (tx_mat[row][col] == inf) {
+	  TXhist->Fill(time_min + row*time_precision,spatial_min + col*spatial_precision,0.0);
+	} else {
+	  TXhist->Fill(time_min + row*time_precision,spatial_min + col*spatial_precision,tx_mat[row][col] - gmin_loglikelihood);
+	}
+	if (ty_mat[row][col] == inf) {
+	  TYhist->Fill(time_min + row*time_precision,spatial_min + col*spatial_precision,0.0);
+	} else {
+	  TYhist->Fill(time_min + row*time_precision,spatial_min + col*spatial_precision,ty_mat[row][col] - gmin_loglikelihood);
+	}
+	if (tz_mat[row][col] == inf) {
+	  TZhist->Fill(time_min + row*time_precision,spatial_min + col*spatial_precision,0.0);
+	} else {
+	  TZhist->Fill(time_min + row*time_precision,spatial_min + col*spatial_precision,tz_mat[row][col] - gmin_loglikelihood);
+	}
+      }
     }
     NewFile.cd();
     cout << "Filling ntuple with global minimum position ..." << endl;
     // Save to the ntuple
     EventGlobalMin->Fill((float)i,(float)gmin_xpos,(float)gmin_ypos,(float)gmin_zpos,(float)gmin_time,gmin_loglikelihood);
-    /*// Normalize the plots that were made to the global minimum experienced during the process
-    time_norm = new TF1(Form("time_norm%03d",i),"-1",time_min,time_max);
-    spatial_norm = new TF1(Form("spatial_norm%03d",i),"-1",spatial_min,spatial_max);
-    xhist_final->Add(spatial_norm,gmin_loglikelihood);
-    yhist_final->Add(spatial_norm,gmin_loglikelihood);
-    zhist_final->Add(spatial_norm,gmin_loglikelihood);
-    thist_final->Add(time_norm,gmin_loglikelihood);    */
     // Save the plots that we have made
     cout << "Saving plots ... " << endl;
     NewFile.cd();
@@ -153,7 +276,26 @@ Requires that we know the precision for the spatial variables and the time varia
     yhist_final->Write();
     zhist_final->Write();
     thist_final->Write();
+    XYhist->Write();
+    XZhist->Write();
+    YZhist->Write();
+    TXhist->Write();
+    TYhist->Write();
+    TZhist->Write();
   }
   EventGlobalMin->Write();
+  // Clean up the matrices
+  delete [] xy_mat[0];
+  delete [] xy_mat;
+  delete [] xz_mat[0];
+  delete [] xz_mat;
+  delete [] yz_mat[0];
+  delete [] yz_mat;
+  delete [] tx_mat[0];
+  delete [] tx_mat;
+  delete [] ty_mat[0];
+  delete [] ty_mat;
+  delete [] tz_mat[0];
+  delete [] tz_mat;
 }
 
